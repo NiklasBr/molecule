@@ -30,6 +30,7 @@ XML;
         $item->shouldReceive('expiresAfter')->andReturnSelf();
         return $callback($item);
     });
+    $cache->shouldReceive('delete')->andReturn(true);
 
     $feedsConfig = sys_get_temp_dir() . '/feeds.yaml';
     file_put_contents($feedsConfig, "feeds: ['http://example.com/feed']");
@@ -93,6 +94,7 @@ XML;
         $item->shouldReceive('expiresAfter')->andReturnSelf();
         return $callback($item);
     });
+    $cache->shouldReceive('delete')->andReturn(true);
 
     $feedsConfig = sys_get_temp_dir() . '/feeds_multi.yaml';
     file_put_contents($feedsConfig, "feeds: ['http://example.com/feed1', 'http://example.com/feed2']");
@@ -140,6 +142,7 @@ XML;
         $item->shouldReceive('expiresAfter')->andReturnSelf();
         return $callback($item);
     });
+    $cache->shouldReceive('delete')->andReturn(true);
 
     $feedsConfig = sys_get_temp_dir() . '/feeds_clean.yaml';
     file_put_contents($feedsConfig, "feeds: ['http://example.com/styled-feed']");
@@ -182,6 +185,7 @@ XML;
         $item->shouldReceive('expiresAfter')->andReturnSelf();
         return $callback($item);
     });
+    $cache->shouldReceive('delete')->andReturn(true);
 
     $feedsConfig = sys_get_temp_dir() . '/feeds_real_atom.yaml';
     file_put_contents($feedsConfig, "feeds: ['https://example.com/releases.atom']");
@@ -226,6 +230,7 @@ XML;
         $item->shouldReceive('expiresAfter')->andReturnSelf();
         return $callback($item);
     });
+    $cache->shouldReceive('delete')->andReturn(true);
 
     $feedsConfig = sys_get_temp_dir() . '/feeds_html_tags.yaml';
     file_put_contents($feedsConfig, "feeds: ['https://example.com/formatted.atom']");
@@ -242,6 +247,98 @@ XML;
     expect($outputContent)->toContain('&lt;li&gt;A&lt;/li&gt;');
     expect($outputContent)->toContain('&lt;li&gt;B&lt;/li&gt;');
     expect($outputContent)->not->toContain('&lt;div&gt;');
+
+    unlink($feedsConfig);
+    unlink($outputFile);
+});
+
+it('stores and uses ETag and Last-Modified headers', function () {
+    $feedContent = <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <entry>
+        <title>Test Entry</title>
+        <link href="http://example.com/test"/>
+        <updated>2023-10-27T10:00:00Z</updated>
+    </entry>
+</feed>
+XML;
+
+    $url = 'http://example.com/feed';
+    $etag = '"abc-123"';
+    $lastModified = 'Fri, 27 Oct 2023 10:00:00 GMT';
+
+    // First request: returns 200 OK with ETag and Last-Modified
+    $response1 = new MockResponse($feedContent, [
+        'http_code' => 200,
+        'response_headers' => [
+            'ETag' => [$etag],
+            'Last-Modified' => [$lastModified],
+        ],
+    ]);
+
+    // Second request: returns 304 Not Modified
+    $response2 = function ($method, $url, $options) use ($etag, $lastModified) {
+        // Verify headers were sent
+        $headers = $options['headers'] ?? [];
+        $ifNoneMatch = null;
+        $ifModifiedSince = null;
+        foreach ($headers as $h) {
+            if (str_starts_with($h, 'If-None-Match: ')) {
+                $ifNoneMatch = substr($h, 15);
+            }
+            if (str_starts_with($h, 'If-Modified-Since: ')) {
+                $ifModifiedSince = substr($h, 19);
+            }
+        }
+
+        if ($ifNoneMatch === $etag && $ifModifiedSince === $lastModified) {
+            return new MockResponse('', ['http_code' => 304]);
+        }
+
+        return new MockResponse('Error', ['http_code' => 400]);
+    };
+
+    $httpClient = new MockHttpClient([$response1, $response2]);
+
+    // Real cache or at least one that stores what we give it
+    $cachedItems = [];
+    $cache = Mockery::mock(CacheInterface::class);
+    $cache->shouldReceive('delete')->andReturn(true);
+    $cache->shouldReceive('get')->andReturnUsing(function ($key, $callback) use (&$cachedItems) {
+        if (isset($cachedItems[$key])) {
+            return $cachedItems[$key];
+        }
+        $item = Mockery::mock(ItemInterface::class);
+        $item->shouldReceive('expiresAfter')->andReturnSelf();
+        $value = $callback($item);
+        $cachedItems[$key] = $value;
+        return $value;
+    });
+
+    $feedsConfig = sys_get_temp_dir() . '/feeds_headers.yaml';
+    file_put_contents($feedsConfig, "feeds: ['$url']");
+    $outputFile = sys_get_temp_dir() . '/output_headers.atom';
+
+    $processor = new FeedProcessor($httpClient, $cache, $feedsConfig, $outputFile);
+
+    // First pass
+    $processor->processFeeds();
+    expect($cachedItems)->toHaveKey('feed_' . md5($url));
+    $cacheEntry = $cachedItems['feed_' . md5($url)];
+    expect($cacheEntry)->toBeArray();
+    expect($cacheEntry)->toHaveKey('content');
+    expect($cacheEntry)->toHaveKey('etag');
+    expect($cacheEntry)->toHaveKey('last_modified');
+    expect($cacheEntry['etag'])->toBe($etag);
+    expect($cacheEntry['last_modified'])->toBe($lastModified);
+
+    // Second pass - should use 304
+    $processor->processFeeds();
+
+    // Verify the second pass used the cached content
+    $outputContent = file_get_contents($outputFile);
+    expect($outputContent)->toContain('Test Entry');
 
     unlink($feedsConfig);
     unlink($outputFile);

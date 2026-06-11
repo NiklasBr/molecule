@@ -32,29 +32,91 @@ readonly class FeedProcessor
      */
     public function processFeeds(): void
     {
-        $config = Yaml::parseFile($this->feedsConfigFile);
-        $feedUrls = $config['feeds'] ?? [];
-
         $allItems = [];
 
-        foreach ($feedUrls as $url) {
-            $feedContent = $this->cache->get('feed_' . md5($url), function (ItemInterface $item) use ($url) {
-                $item->expiresAfter(3600); // Cache for 1 hour
-                $response = $this->httpClient->request('GET', $url);
-                return $response->getContent();
-            });
-
+        foreach ($this->getFeedUrls() as $url) {
+            $feedContent = $this->getFeedContent($url);
             $items = $this->parseFeed($feedContent);
             $allItems = array_merge($allItems, $items);
         }
 
-        // Sort chronologically (descending)
-        usort(
-            $allItems,
-            static fn ($a, $b) => $b['updated'] <=> $a['updated']
-        );
-
+        $this->sortItems($allItems);
         $this->generateAtomFeed($allItems);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getFeedUrls(): array
+    {
+        $config = Yaml::parseFile($this->feedsConfigFile);
+
+        return $config['feeds'] ?? [];
+    }
+
+    /**
+     * @throws InvalidArgumentException
+     */
+    private function getFeedContent(string $url): string
+    {
+        $cacheKey = 'feed_' . md5($url);
+        $cachedData = $this->cache->get($cacheKey, static function (ItemInterface $item) {
+            $item->expiresAfter(-1);
+
+            return null;
+        });
+
+        if (is_array($cachedData) && ($cachedData['expires_at'] ?? 0) > time()) {
+            return $cachedData['content'];
+        }
+
+        $options = [];
+        if (is_array($cachedData)) {
+            if (!empty($cachedData['etag'])) {
+                $options['headers']['If-None-Match'] = $cachedData['etag'];
+            }
+            if (!empty($cachedData['last_modified'])) {
+                $options['headers']['If-Modified-Since'] = $cachedData['last_modified'];
+            }
+        }
+
+        $response = $this->httpClient->request('GET', $url, $options);
+        $statusCode = $response->getStatusCode();
+
+        if (304 === $statusCode && is_array($cachedData)) {
+            $feedContent = $cachedData['content'];
+        } else {
+            $feedContent = $response->getContent();
+        }
+
+        $headers = $response->getHeaders(false);
+        $etag = $headers['etag'][0] ?? (304 === $statusCode ? ($cachedData['etag'] ?? null) : null);
+        $lastModified = $headers['last-modified'][0] ?? (304 === $statusCode ? ($cachedData['last_modified'] ?? null) : null);
+
+        $this->cache->delete($cacheKey);
+        $this->cache->get($cacheKey, static function (ItemInterface $item) use ($feedContent, $etag, $lastModified) {
+            $item->expiresAfter(86400 * 7); // Cache metadata for 7 days
+
+            return [
+                'content' => $feedContent,
+                'etag' => $etag,
+                'last_modified' => $lastModified,
+                'expires_at' => time() + 3600, // 1 hour freshness
+            ];
+        });
+
+        return $feedContent;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function sortItems(array &$items): void
+    {
+        usort(
+            $items,
+            static fn (array $a, array $b) => $b['updated'] <=> $a['updated']
+        );
     }
 
     private function parseFeed(string $xmlContent): array
@@ -69,40 +131,40 @@ readonly class FeedProcessor
         $items = [];
         $entries = $xpath->query('//atom:feed/atom:entry');
 
-        if ($entries !== false && $entries->length > 0) {
+        if (false !== $entries && $entries->length > 0) {
             foreach ($entries as $entry) {
                 $title = trim((string) $xpath->evaluate('string(atom:title)', $entry));
                 $summary = trim((string) $xpath->evaluate('string(atom:summary)', $entry));
                 $content = trim((string) $xpath->evaluate('string(atom:content)', $entry));
-                $description = $summary !== '' ? $summary : $content;
+                $description = '' !== $summary ? $summary : $content;
 
                 $link = '';
                 $links = $xpath->query('atom:link', $entry);
-                if ($links !== false) {
+                if (false !== $links) {
                     foreach ($links as $candidateLink) {
                         if (!$candidateLink->hasAttribute('href')) {
                             continue;
                         }
 
                         $rel = $candidateLink->getAttribute('rel');
-                        if ($rel === '' || $rel === 'alternate') {
+                        if ('' === $rel || 'alternate' === $rel) {
                             $link = $candidateLink->getAttribute('href');
                             break;
                         }
 
-                        if ($link === '') {
+                        if ('' === $link) {
                             $link = $candidateLink->getAttribute('href');
                         }
                     }
                 }
 
                 $rawUpdated = trim((string) $xpath->evaluate('string(atom:updated)', $entry));
-                $timestamp = $rawUpdated !== '' ? strtotime($rawUpdated) : false;
-                $updated = $timestamp !== false ? date(DateTimeInterface::ATOM, $timestamp) : date(DateTimeInterface::ATOM);
+                $timestamp = '' !== $rawUpdated ? strtotime($rawUpdated) : false;
+                $updated = false !== $timestamp ? date(DateTimeInterface::ATOM, $timestamp) : date(DateTimeInterface::ATOM);
 
                 $id = trim((string) $xpath->evaluate('string(atom:id)', $entry));
-                if ($id === '') {
-                    $id = $link !== '' ? $link : uniqid('entry_', true);
+                if ('' === $id) {
+                    $id = '' !== $link ? $link : uniqid('entry_', true);
                 }
 
                 $items[] = [
@@ -119,15 +181,15 @@ readonly class FeedProcessor
 
         $crawler = new Crawler($xmlContent);
         $rssFeedTitle = $crawler->filter('channel > title')->count() ? trim($crawler->filter('channel > title')->first()->text()) : '';
-        $crawler->filter('item')->each(function (Crawler $node) use (&$items) {
+        $crawler->filter('item')->each(static function (Crawler $node) use (&$items) {
             $rawPubDate = $node->filter('pubDate')->count() ? $node->filter('pubDate')->text() : '';
-            $timestamp = $rawPubDate !== '' ? strtotime($rawPubDate) : false;
+            $timestamp = '' !== $rawPubDate ? strtotime($rawPubDate) : false;
 
             $items[] = [
                 'title' => strip_tags($node->filter('title')->text()),
                 'description' => $this->cleanDescription($node->filter('description')->text()),
                 'link' => $node->filter('link')->text(),
-                'updated' => $timestamp !== false ? date(DateTimeInterface::ATOM, $timestamp) : date(DateTimeInterface::ATOM),
+                'updated' => false !== $timestamp ? date(DateTimeInterface::ATOM, $timestamp) : date(DateTimeInterface::ATOM),
                 'id' => $node->filter('guid')->count() ? $node->filter('guid')->text() : $node->filter('link')->text(),
             ];
         });
@@ -142,7 +204,7 @@ readonly class FeedProcessor
 
     private function prependSourceToTitle(string $title, string $feedTitle): string
     {
-        if ($feedTitle === '') {
+        if ('' === $feedTitle) {
             return $title;
         }
 
@@ -166,7 +228,7 @@ readonly class FeedProcessor
             // There should be only one body element, but loop through all of them just in case
             foreach ($dom->getElementsByTagName('body') as $body) {
                 $description = '';
-                if ($body !== null) {
+                if (null !== $body) {
                     $allowedTags = ['p', 'ol', 'ul', 'li', 'h2', 'h3'];
                     foreach ($xpath->query('.//*', $body) as $node) {
                         if (in_array($node->nodeName, $allowedTags, true)) {
@@ -174,11 +236,11 @@ readonly class FeedProcessor
                         }
 
                         $parent = $node->parentNode;
-                        if ($parent === null) {
+                        if (null === $parent) {
                             continue;
                         }
 
-                        while ($node->firstChild !== null) {
+                        while (null !== $node->firstChild) {
                             $parent->insertBefore($node->firstChild, $node);
                         }
 
@@ -203,7 +265,9 @@ readonly class FeedProcessor
         $xml = new SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>');
         $xml->addChild('title', 'Combined Feed');
         $xml->addChild('id', 'urn:uuid:combined-feed');
-        $xml->addChild('updated', date(DateTimeInterface::ATOM));
+
+        $updated = $items[0]['updated'] ?? date(DateTimeInterface::ATOM);
+        $xml->addChild('updated', $updated);
 
         $link = $xml->addChild('link');
         $link->addAttribute('rel', 'self');
