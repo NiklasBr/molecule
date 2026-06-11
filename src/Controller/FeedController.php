@@ -16,7 +16,7 @@ class FeedController extends AbstractController
     #[Route(
         path: '/',
         methods: [Request::METHOD_GET],
-        type: 'application/atom+xml',
+        format: 'application/atom+xml',
         stateless: true,
     )]
     public function index(FeedProcessor $feedProcessor): Response
