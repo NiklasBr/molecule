@@ -23,6 +23,9 @@
             "bin/phpunit"
         ]
     },
+    "symfony/apache-pack": {
+        "version": "v1.0.1"
+    },
     "symfony/console": {
         "version": "8.1",
         "recipe": {

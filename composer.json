@@ -17,6 +17,7 @@
         "symfony/http-client": "8.1.*",
         "symfony/runtime": "8.1.*",
         "symfony/yaml": "8.1.*",
+        "symfony/apache-pack": "^1.0.1",
         "ext-simplexml": "*",
         "ext-dom": "*",
         "ext-libxml": "*"

@@ -12,15 +12,12 @@ services:
       - key: APP_SECRET
         scope: RUN_TIME
         value: ${molecule-web.APP_SECRET}
-      - key: DATABASE_URL
-        scope: RUN_TIME
-        value: ${molecule-web.DATABASE_URL}
     build_command: |
       composer install --no-dev --optimize-autoloader
       bin/console app:process-feeds
       bin/console cache:clear
       bin/console cache:warmup
-    run_command: heroku-php-apache2 public/
+    run_command: vendor/bin/heroku-php-apache2 public/
     http_port: 8080
     instance_count: 1
     instance_size_slug: basic-xxs
