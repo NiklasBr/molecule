@@ -72,6 +72,10 @@
         "symfony/symfony": "*"
     },
     "extra": {
+        "heroku": {
+            "document-root": "public",
+            "framework": "symfony"
+        },
         "symfony": {
             "allow-contrib": false,
             "require": "8.1.*"
