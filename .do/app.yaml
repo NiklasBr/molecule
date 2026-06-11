@@ -12,8 +12,8 @@ services:
       - key: APP_SECRET
         scope: RUN_TIME
         value: ${molecule-web.APP_SECRET}
-    run_command: heroku-php-apache2 public/
-    http_port: 8080
+    run_command: heroku-php-apache2 public
+    http_port: 80
     instance_count: 1
     instance_size_slug: basic-xxs
     routes:
