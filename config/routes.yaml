@@ -8,4 +8,8 @@
 #   bin/console debug:router
 
 controllers:
-    resource: routing.controllers
+    resource: ../src/Controller/
+    type: attribute
+
+framework:
+    resource: routes/framework.yaml

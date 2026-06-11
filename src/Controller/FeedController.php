@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\FeedProcessor;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -11,9 +12,13 @@ use Symfony\Component\Routing\Attribute\Route;
 class FeedController extends AbstractController
 {
     #[Route('/', name: 'app_index')]
-    public function index(): Response
+    public function index(FeedProcessor $feedProcessor): Response
     {
         $feedPath = $this->getParameter('kernel.project_dir') . '/public/combined_feed.atom';
+
+        if (!file_exists($feedPath)) {
+            $feedProcessor->processFeeds();
+        }
 
         if (file_exists($feedPath)) {
             return $this->redirect('/combined_feed.atom');
