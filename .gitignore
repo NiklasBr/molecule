@@ -55,4 +55,7 @@
 /phpunit.xml
 /.phpunit.cache/
 ###< phpunit/phpunit ###
+
+/.idea/
+/public/combined_feed.atom
 /.junie/
