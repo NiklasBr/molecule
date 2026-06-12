@@ -1,10 +1,12 @@
 {
     "type": "project",
-    "license": "proprietary",
+    "license": "agpl-3.0-or-later",
+    "name": "niklasbr/molecule",
+    "description": "A tool for combining Atom feeds into a single feed, useful for Slack integration",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
-        "php": ">=8.4",
+        "php": ">=8.5",
         "ext-ctype": "*",
         "ext-iconv": "*",
         "symfony/cache": "8.1.*",
