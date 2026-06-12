@@ -2,3 +2,5 @@ feeds:
   - 'https://github.com/pimcore/studio-backend-bundle/releases.atom'
   - 'https://github.com/pimcore/studio-ui-bundle/releases.atom'
   - 'https://github.com/pimcore/pimcore/releases.atom'
+  - 'https://github.com/pimcore/platform-version/releases.atom'
+  - 'https://github.com/pimcore/data-hub/releases.atom'
