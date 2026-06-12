@@ -265,6 +265,7 @@ readonly class FeedProcessor
         $xml = new SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>');
         $xml->addChild('title', 'Combined Feed');
         $xml->addChild('id', 'urn:uuid:combined-feed');
+        $xml->addChild('generator', 'Molecule by Niklas Brunberg')->addAttribute('uri', 'https://github.com/NiklasBr/molecule');
 
         $updated = $items[0]['updated'] ?? date(DateTimeInterface::ATOM);
         $xml->addChild('updated', $updated);
