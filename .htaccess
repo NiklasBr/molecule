@@ -1,0 +1,47 @@
+# Simple Symfony .htaccess
+DirectoryIndex index.php
+
+<IfModule mod_negotiation.c>
+    Options -MultiViews
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Determine the RewriteBase automatically and set it as env variable.
+    # If you are using Apache aliases to do mass virtual hosting or installed the
+    # project in a subdirectory, the base path will be prepended to allow proper
+    # resolution of the index.php file and to redirect to the correct URI. It will
+    # work in environments without mod_rewrite and works with .htaccess files too.
+    RewriteCond %{REQUEST_URI}::$0 ^(/.+)/(.*)::\2$
+    RewriteRule .* - [E=BASE:%1]
+
+    # Sets the HTTP_AUTHORIZATION header removed by Apache
+    RewriteCond %{HTTP:Authorization} .+
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+
+    # Redirect to URI without front controller to prevent duplicate content
+    # (with and without `/index.php`). Only do this redirect on the initial
+    # rewrite by Apache and not on subsequent cycles. Otherwise we would get an
+    # endless redirect loop (request -> rewrite to /index.php -> redirect -> ...).
+    # So in case you get a "too many redirects" error or you always get redirected
+    # to the homepage, check your [L] flag and being UseCanonicalName On.
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
+    RewriteRule ^index\.php(?:/(.*)|$) %{ENV:BASE}/$1 [R=301,L]
+
+    # If the requested filename exists, simply serve it.
+    # We only want to let Apache serve files and not directories.
+    # Rewrite all other queries to the front controller.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ %{ENV:BASE}/index.php [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    <IfModule mod_alias.c>
+        # When mod_rewrite is not available, we instruct a temporary redirect of
+        # the section part of the URI to the front controller explicitly. This
+        # helps i.e. properly resolve the assets.
+        RedirectMatch 307 ^/$ /index.php/
+        # RedirectMatch 307 ^/(.*)$ /index.php/$1
+    </IfModule>
+</IfModule>
