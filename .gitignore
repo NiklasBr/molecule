@@ -58,5 +58,4 @@
 ###< phpunit/phpunit ###
 
 /.idea/
-/public/combined_feed.atom
 /.junie/
