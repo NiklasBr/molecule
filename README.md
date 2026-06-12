@@ -3,25 +3,25 @@ A collection of atoms
 
 ## Deployment
 
-The easiest way to deploy this application is using **DigitalOcean App Platform**.
+This application is deployed to **GitHub Pages** using GitHub Actions.
 
-### Quick Deploy to DigitalOcean
+### Automatic Updates
 
-1.  **Push your code** to a GitHub repository.
-2.  Go to the **DigitalOcean Control Panel**.
-3.  Click **Apps** -> **Create** -> **Apps**.
-4.  Connect your GitHub account and select this repository.
-5.  DigitalOcean will detect the `.do/app.yaml` file and configure the app automatically.
-6.  Set the required environment variables:
-    *   `APP_SECRET`: A random string for Symfony security.
-    *   `DATABASE_URL`: Your database connection string (if applicable).
-7.  Click **Create Resources** to deploy.
+A GitHub workflow is configured to fetch and update feeds thrice daily. The combined feed is then deployed to the `gh-pages` branch and served via GitHub Pages.
+
+### Setup
+
+1.  **Fork or clone** this repository.
+2.  Enable **GitHub Pages** in your repository settings:
+    *   Go to **Settings** -> **Pages**.
+    *   Select **Deploy from a branch**.
+    *   Choose the `gh-pages` branch and `/ (root)` folder.
+3.  The workflow will automatically run on push to `main` or according to the schedule.
 
 ### Local Development
 
 If you are using Homebrew on macOS, you can execute PHP and Composer from their default paths:
-
 ```bash
-/opt/homebrew/bin/php -v
-/opt/homebrew/bin/php /opt/homebrew/bin/composer --version
+php -v
+composer --version
 ```
