@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>Combined Feed</title>
+  <title>Combined Pimcore release notes</title>
   <id>urn:uuid:combined-feed</id>
   <generator uri="https://github.com/NiklasBr/molecule">Molecule by Niklas Brunberg</generator>
   <updated>2026-06-12T00:00:00+02:00</updated>

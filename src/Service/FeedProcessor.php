@@ -263,7 +263,7 @@ readonly class FeedProcessor
     private function generateAtomFeed(array $items): void
     {
         $xml = new SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>');
-        $xml->addChild('title', 'Combined Feed');
+        $xml->addChild('title', 'Combined Pimcore release notes');
         $xml->addChild('id', 'urn:uuid:combined-feed');
         $xml->addChild('generator', 'Molecule by Niklas Brunberg')->addAttribute('uri', 'https://github.com/NiklasBr/molecule');
 
