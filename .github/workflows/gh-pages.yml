@@ -28,7 +28,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
-          extensions: dom, libxml, simplexml, yaml
+          extensions: dom, intl, libxml, mbstring, simplexml, yaml
 
       - name: Install Dependencies
         run: composer install --no-dev --optimize-autoloader
